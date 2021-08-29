@@ -1,0 +1,4 @@
+<h2>Document ID: <code><%= @id %></code></h2>
+
+<textarea id="editor" data-id="<%= @id %>">
+</textarea>

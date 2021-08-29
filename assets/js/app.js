@@ -3,13 +3,39 @@
 // its own CSS file.
 import "../css/app.css"
 
-// webpack automatically bundles all modules in your
-// entry points. Those entry points can be configured
-// in "webpack.config.js".
-//
-// Import deps with the dep name or local files with a relative path, for example:
-//
-//     import {Socket} from "phoenix"
-//     import socket from "./socket"
-//
 import "phoenix_html"
+import {Socket} from "phoenix"
+import socket from "./socket"
+import Document from './document'
+
+
+
+// Helpers
+const openDoc = (id) => window.location = `/${id}`;
+const randomId = () => Math.random().toString(36).substring(2, 7);
+
+const addListener = (selector, event, fun) => {
+  const elem = document.querySelector(selector);
+  if (elem) elem.addEventListener(event, fun);
+};
+
+
+
+// New Document
+addListener('#new-doc', 'click', () => {
+  openDoc(randomId());
+});
+
+
+// Open existing document
+addListener('#open-doc', 'submit', (e) => {
+  e.preventDefault();
+
+  const form = new FormData(e.target);
+  const id = form.get('id');
+  openDoc(id);
+});
+
+
+// Initialize editor
+window.doc = new Document('#editor', socket);

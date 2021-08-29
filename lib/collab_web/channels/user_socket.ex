@@ -2,7 +2,7 @@ defmodule CollabWeb.UserSocket do
   use Phoenix.Socket
 
   ## Channels
-  # channel "room:*", CollabWeb.RoomChannel
+  channel "doc:*", CollabWeb.DocChannel
 
   # Socket params are passed from the client and can
   # be used to verify and authenticate a user. After

@@ -33,6 +33,7 @@ defmodule Collab.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:delta, "~> 0.1.0"},
       {:phoenix, "~> 1.5.10"},
       {:phoenix_html, "~> 2.11"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},

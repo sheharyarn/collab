@@ -16,7 +16,8 @@ defmodule CollabWeb.Router do
   scope "/", CollabWeb do
     pipe_through :browser
 
-    get "/", PageController, :index
+    get "/",     PageController, :index
+    get "/:id/", PageController, :view
   end
 
   # Other scopes may use custom stacks.
