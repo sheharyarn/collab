@@ -1,6 +1,7 @@
 defmodule CollabWeb.DocChannel do
   use CollabWeb, :channel
   alias Collab.Document
+  require Logger
 
   @impl true
   def join("doc:" <> id, _payload, socket) do
@@ -12,22 +13,24 @@ defmodule CollabWeb.DocChannel do
   end
 
   @impl true
-  def handle_in("update", %{"change" => change} = payload, socket) do
-    case Document.update(socket.assigns.id, change) do
-      :ok ->
-        broadcast_from!(socket, "update", payload)
-        {:noreply, socket}
+  def handle_info(:after_join, socket) do
+    response = Document.get_contents(socket.assigns.id)
+    push(socket, "open", response)
 
-      _error ->
-        {:reply, {:error, "Something went wrong"}, socket}
-    end
+    {:noreply, socket}
   end
 
   @impl true
-  def handle_info(:after_join, socket) do
-    contents = Document.contents(socket.assigns.id)
-    push(socket, "open", %{contents: contents})
+  def handle_in("update", %{"change" => change, "version" => version}, socket) do
+    case Document.update(socket.assigns.id, change, version) do
+      {:ok, response} ->
+        Process.sleep(2000)
+        broadcast_from!(socket, "update", response)
+        {:reply, :ok, socket}
 
-    {:noreply, socket}
+      error ->
+        Logger.error(inspect(error))
+        {:reply, {:error, inspect(error)}, socket}
+    end
   end
 end

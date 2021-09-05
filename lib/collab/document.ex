@@ -3,32 +3,26 @@ defmodule Collab.Document do
   alias __MODULE__.Supervisor
 
   @initial_state %{
-    contents: [],
     version: 0,
+    changes: [],
+    contents: [],
   }
 
 
   # Public API
   # ----------
 
-  def start_link(id), do: GenServer.start_link(__MODULE__, :ok, name: {:global, {:doc, id}})
-  def stop(id),       do: GenServer.stop({:global, {:doc, id}})
+  def start_link(id), do: GenServer.start_link(__MODULE__, :ok, name: name(id))
+  def stop(id),       do: GenServer.stop(name(id))
 
-  def contents(id),       do: call(id, :contents)
-  def update(id, change), do: call(id, {:update, change})
-
-  defp call(id, data) do
-    with {:ok, pid} <- open(id), do: GenServer.call(pid, data)
-  end
+  def get_contents(id),        do: call(id, :get_contents)
+  def update(id, change, ver), do: call(id, {:update, change, ver})
 
   @doc "Create or open a document with a given id"
   def open(id) do
-    case :global.whereis_name({:doc, id}) do
-      pid when is_pid(pid) ->
-        {:ok, pid}
-
-      :undefined ->
-        DynamicSupervisor.start_child(Supervisor, {__MODULE__, id})
+    case GenServer.whereis(name(id)) do
+      nil -> DynamicSupervisor.start_child(Supervisor, {__MODULE__, id})
+      pid -> {:ok, pid}
     end
   end
 
@@ -40,15 +34,51 @@ defmodule Collab.Document do
   def init(:ok), do: {:ok, @initial_state}
 
   @impl true
-  def handle_call(:contents, _from, state) do
-    {:reply, state.contents, state}
+  def handle_call(:get_contents, _from, state) do
+    response = Map.take(state, [:version, :contents])
+    {:reply, response, state}
   end
 
   @impl true
-  def handle_call({:update, change}, _from, state) do
-    contents = Delta.compose(state.contents, change)
-    state = %{state | contents: contents, version: state.version + 1}
+  def handle_call({:update, change, client_version}, _from, state) do
+    if client_version > state.version do
+      # Error when client version is inconsistent with
+      # server state
+      {:reply, {:error, :server_behind}, state}
+    else
+      # Check how far behind client is
+      changes_count = state.version - client_version
 
-    {:reply, :ok, state}
+      # Transform client change if it was sent on an
+      # older version of the document
+      transformed_change =
+        state.changes
+        |> Enum.take(changes_count)
+        |> Enum.reverse()
+        |> Enum.reduce(change, &Delta.transform(&1, &2, true))
+
+      state = %{
+        version: state.version + 1,
+        changes: [change | state.changes],
+        contents: Delta.compose(state.contents, transformed_change),
+      }
+
+      response = %{
+        version: state.version,
+        change: transformed_change
+      }
+
+      {:reply, {:ok, response}, state}
+    end
   end
+
+
+  # Private Helpers
+  # ---------------
+
+  defp call(id, data) do
+    with {:ok, pid} <- open(id), do: GenServer.call(pid, data)
+  end
+
+  defp name(id), do: {:global, {:doc, id}}
 end

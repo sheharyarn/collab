@@ -1,7 +1,7 @@
 <section class="phx-hero row">
   <div class="column">
-    <h2>New</h2>
-    <button id="new-doc">Create Document</button>
+    <h2>New Document</h2>
+    <button id="new-doc">Create New</button>
   </div>
 
   <div class="column">

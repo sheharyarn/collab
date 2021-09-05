@@ -4,15 +4,9 @@
 import "../css/app.css"
 
 import "phoenix_html"
-import {Socket} from "phoenix"
 import socket from "./socket"
 import Document from './document'
 
-
-
-// Helpers
-const openDoc = (id) => window.location = `/${id}`;
-const randomId = () => Math.random().toString(36).substring(2, 7);
 
 const addListener = (selector, event, fun) => {
   const elem = document.querySelector(selector);
@@ -20,20 +14,17 @@ const addListener = (selector, event, fun) => {
 };
 
 
-
 // New Document
-addListener('#new-doc', 'click', () => {
-  openDoc(randomId());
+addListener('#new-doc', 'click', (e) => {
+  const randomId = Math.random().toString(36).substring(2, 7);
+  window.location = `/${randomId}`;
 });
-
 
 // Open existing document
 addListener('#open-doc', 'submit', (e) => {
   e.preventDefault();
-
-  const form = new FormData(e.target);
-  const id = form.get('id');
-  openDoc(id);
+  const id = new FormData(e.target).get('id');
+  window.location = `/${id}`;
 });
 
 
