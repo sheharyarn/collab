@@ -1,7 +1,5 @@
 import Delta from 'quill-delta';
 
-const simple = (delta) => delta && delta.ops;
-
 export default class Document {
   editor = null;     // DOM element reference
   channel = null;    // Connected socket channel for Document
