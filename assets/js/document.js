@@ -3,16 +3,13 @@ import Delta from 'quill-delta';
 const simple = (delta) => delta && delta.ops;
 
 export default class Document {
-  // DOM Element Reference
-  editor = null;
-  // Connected Socket Channel for Document
-  channel = null;
+  editor = null;     // DOM element reference
+  channel = null;    // Connected socket channel for Document
 
-  version = 0;
-  changes = []
-  contents = null;
-  queued = null;
-  isCommitting = false;
+  version = 0;       // Local version
+  contents = null;   // Local contents
+  committing = null; // Local change being currently pushed
+  queued = null;     // Pending change yet to be pushed
 
   constructor(selector, socket) {
     this.editor = document.querySelector(selector);
@@ -21,24 +18,20 @@ export default class Document {
       const id = this.editor.dataset.id;
       this.channel = socket.channel(`doc:${id}`, {});
 
+      // Join document channel and set up event listeners
       this.channel
         .join()
-        // .receive('ok', () => this.ss())
         .receive('ok', () => {
-          // Set up Listners
           this.channel.on('open', (resp) => this.onOpen(resp));
           this.channel.on('update', (resp) => this.onRemoteUpdate(resp));
           this.editor.addEventListener('input', (e) => this.onLocalUpdate(e.target));
         })
-        .receive('error', (resp) => console.log('Socket Error', resp));
+        .receive('error', (resp) => {
+          console.log('Socket Error', resp)
+        });
     }
   }
 
-  // ss() {
-  //   this.channel.on('open', (resp) => this.onOpen(resp));
-  //   this.channel.on('update', this.onRemoteUpdate);
-  //   this.editor.addEventListener('input', (e) => this.onLocalUpdate(e.target.value));
-  // }
 
   // Show initial contents on opening doc
   onOpen({ contents, version }) {
@@ -50,12 +43,6 @@ export default class Document {
 
     this.logState('UPDATED STATE');
   }
-
-
-
-  onRemoteUpdate({ change, version }) {
-  }
-
 
 
   // Track and push local changes
@@ -71,114 +58,68 @@ export default class Document {
   }
 
   pushLocalChange(change) {
-    if (this.isCommitting) {
+    if (this.committing) {
+      // Queue new changes if we're already in the middle of
+      // pushing previous changes to server
       this.queued = this.queued || new Delta();
       this.queued = this.queued.compose(change);
     } else {
       const version = this.version;
       this.version += 1;
-      this.changes.push(change);
-      this.isCommitting = true;
+      this.committing = change;
 
-      setTimeout(() => {
+      // setTimeout(() => {
         this.channel
           .push('update', { change: change.ops, version })
           .receive('ok', (resp) => {
             console.log('ACK RECEIVED FOR', version, change.ops)
-            this.isCommitting = false;
+            this.committing = null;
+
+            // Push any queued changes after receiving ACK
+            // from server
             if (this.queued) {
               this.pushLocalChange(this.queued);
               this.queued = null;
             }
           });
-      }, 3000);
+      // }, 3000);
     }
   }
 
 
+  // Listen for remote changes
+  onRemoteUpdate({ change, version }) {
+    this.logState('CURRENT STATE');
+    console.log('RECEIVED', { version, change })
 
+    let remoteDelta = new Delta(change);
 
+    // Transform remote delta if we're in the middle
+    // of pushing changes
+    if (this.committing) {
+      remoteDelta = this.committing.transform(remoteDelta, false);
 
-
-  setupListeners() {
-    // Show initial contents on opening doc
-    this.channel.on('open', (resp) => {
-      this.logState('CURRENT STATE');
-      this.version = resp.version;
-      this.contents = new Delta(resp.contents);
-      this.updateEditor();
-      this.logState('UPDATED STATE');
-    });
-
-    // Listen for remote changes
-    this.channel.on('update', (resp) => {
-      this.logState('CURRENT STATE');
-      console.log('RECEIVED UPDATE', resp);
-
-      if (resp.version <= this.version + 1) {
-        const changesSince = this.version - resp.version;
-        const change = new Delta(resp.change);
-
-        const transformed =
-          this.changes
-            .slice(this.changes.length - changesSince)
-            .reduce((acc, ch) => acc.transform(ch), change);
-
-
-        console.log('TRANSFORMED', simple(transformed));
-
-        const newPosition = change.transformPosition(this.editor.selectionStart);
-
-        this.contents = this.contents.compose(transformed);
-        this.version = resp.version;
-        this.changes.push(transformed);
-        this.updateEditor(newPosition);
+      // If there are more queued changes the server hasn't
+      // seen yet, transform both remote delta and queued changes
+      // on each other to make the document consistent.
+      if (this.queued) {
+        const remotePending = this.queued.transform(remoteDelta, false);
+        this.queued = remoteDelta.transform(this.queued, true);
+        remoteDelta = remotePending;
       }
+    }
 
-      this.logState('UPDATED STATE');
-    });
+    const newPosition = remoteDelta.transformPosition(this.editor.selectionStart);
+    this.contents = this.contents.compose(remoteDelta);
+    this.version += 1;
+    this.updateEditor(newPosition);
 
-    // Track and push local changes
-    this.editor.addEventListener('input', (e) => {
-      this.logState('CURRENT STATE');
-
-      const newDelta = new Delta().insert(e.target.value);
-      const change = this.contents.diff(newDelta);
-      const version = this.version;
-
-      this.changes.push(change);
-
-      setTimeout(() => {
-        this.channel
-          .push('update', { change: change.ops, version })
-          .receive('ok', (resp) => {
-            console.log('ACK RECEIVED', change.ops, resp);
-
-            if (version === this.version) {
-              this.version += 1;
-              this.contents = newDelta;
-            } else {
-              console.log('VERSION MISMATCH')
-
-              const changeCount = this.version - version;
-              const transformed =
-                this.changes
-                  .slice(this.changes.length - changeCount)
-                  .reduce((ch, base) => base.transform(ch), change)
-
-              console.log('TRANSFORMED', simple(transformed))
-              this.version += 1;
-              this.contents = this.contents.compose(transformed);
-            }
-          })
-          .receive('error', (resp) => console.log('ACK ERROR', resp));
-      }, 3000)
-
-      this.logState('UPDATED STATE');
-    });
+    this.logState('UPDATED STATE');
   }
 
-  // Convert delta to text and display value in editor
+
+
+  // Flatten delta to plain text and display value in editor
   updateEditor(position) {
     const text = this.contents.reduce((text, op) => {
       const val = (typeof op.insert === 'string') ? op.insert : '';
