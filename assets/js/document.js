@@ -2,7 +2,7 @@ import Delta from 'quill-delta';
 
 export default class Document {
   editor = null;     // DOM element reference
-  channel = null;    // Connected socket channel for Document
+  channel = null;    // Connected socket channel
 
   version = 0;       // Local version
   contents = null;   // Local contents
@@ -31,7 +31,7 @@ export default class Document {
   }
 
 
-  // Show initial contents on opening doc
+  // Show initial contents on joining the document channel
   onOpen({ contents, version }) {
     this.logState('CURRENT STATE');
 
@@ -66,7 +66,7 @@ export default class Document {
       this.version += 1;
       this.committing = change;
 
-      // setTimeout(() => {
+      setTimeout(() => {
         this.channel
           .push('update', { change: change.ops, version })
           .receive('ok', (resp) => {
@@ -80,7 +80,7 @@ export default class Document {
               this.queued = null;
             }
           });
-      // }, 3000);
+      }, 2000);
     }
   }
 
@@ -97,9 +97,9 @@ export default class Document {
     if (this.committing) {
       remoteDelta = this.committing.transform(remoteDelta, false);
 
-      // If there are more queued changes the server hasn't
-      // seen yet, transform both remote delta and queued changes
-      // on each other to make the document consistent.
+      // If there are more queued changes the server hasn't seen
+      // yet, transform both remote delta and queued changes on
+      // each other to make the document consistent with server.
       if (this.queued) {
         const remotePending = this.queued.transform(remoteDelta, false);
         this.queued = remoteDelta.transform(this.queued, true);
@@ -119,12 +119,11 @@ export default class Document {
 
   // Flatten delta to plain text and display value in editor
   updateEditor(position) {
-    const text = this.contents.reduce((text, op) => {
-      const val = (typeof op.insert === 'string') ? op.insert : '';
-      return text + val;
-    }, '');
-
-    this.editor.value = text;
+    this.editor.value =
+      this.contents.reduce((text, op) => {
+        const val = (typeof op.insert === 'string') ? op.insert : '';
+        return text + val;
+      }, '');
 
     if (position) {
       this.editor.selectionStart = position;

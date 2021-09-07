@@ -18,7 +18,6 @@ defmodule Collab.Document do
   def get_contents(id),        do: call(id, :get_contents)
   def update(id, change, ver), do: call(id, {:update, change, ver})
 
-  @doc "Create or open a document with a given id"
   def open(id) do
     case GenServer.whereis(name(id)) do
       nil -> DynamicSupervisor.start_child(Supervisor, {__MODULE__, id})
@@ -40,7 +39,7 @@ defmodule Collab.Document do
   end
 
   @impl true
-  def handle_call({:update, change, client_version}, _from, state) do
+  def handle_call({:update, client_change, client_version}, _from, state) do
     if client_version > state.version do
       # Error when client version is inconsistent with
       # server state
@@ -55,17 +54,17 @@ defmodule Collab.Document do
         state.changes
         |> Enum.take(changes_count)
         |> Enum.reverse()
-        |> Enum.reduce(change, &Delta.transform(&1, &2, true))
+        |> Enum.reduce(client_change, &Delta.transform(&1, &2, true))
 
       state = %{
         version: state.version + 1,
-        changes: [change | state.changes],
+        changes: [transformed_change | state.changes],
         contents: Delta.compose(state.contents, transformed_change),
       }
 
       response = %{
         version: state.version,
-        change: transformed_change
+        change: transformed_change,
       }
 
       {:reply, {:ok, response}, state}
