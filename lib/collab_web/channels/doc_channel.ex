@@ -21,11 +21,11 @@ defmodule CollabWeb.DocChannel do
   end
 
   @impl true
-  def handle_in("update", %{"change" => change, "version" => version}, socket) do
-    case Document.update(socket.assigns.id, change, version) do
-      {:ok, response} ->
+  def handle_in("update", %{"change" => change} = payload, socket) do
+    case Document.update(socket.assigns.id, change) do
+      {:ok, _resp} ->
         # Process.sleep(1000)
-        broadcast_from!(socket, "update", response)
+        broadcast_from!(socket, "update", payload)
         {:reply, :ok, socket}
 
       error ->

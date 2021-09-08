@@ -6,5 +6,5 @@ alias Collab.{
 
 
 # Create some initial docs
-Document.update("hello", [Op.insert("Hello World!")], 0)
-Document.update("goat", [Op.insert("go")], 0)
+Document.update("hello", [Op.insert("Hello World!")])
+Document.update("goat", [Op.insert("go")])
