@@ -66,7 +66,7 @@ export default class Document {
       this.version += 1;
       this.committing = change;
 
-      setTimeout(() => {
+      // setTimeout(() => {
         this.channel
           .push('update', { change: change.ops, version })
           .receive('ok', (resp) => {
@@ -80,7 +80,7 @@ export default class Document {
               this.queued = null;
             }
           });
-      }, 2000);
+      // }, 2000);
     }
   }
 

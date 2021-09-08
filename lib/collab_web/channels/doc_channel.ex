@@ -24,7 +24,7 @@ defmodule CollabWeb.DocChannel do
   def handle_in("update", %{"change" => change, "version" => version}, socket) do
     case Document.update(socket.assigns.id, change, version) do
       {:ok, response} ->
-        Process.sleep(1000)
+        # Process.sleep(1000)
         broadcast_from!(socket, "update", response)
         {:reply, :ok, socket}
 
