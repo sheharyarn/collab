@@ -57,7 +57,7 @@ export default class Document {
       this.version += 1;
       this.committing = change;
 
-      setTimeout(() => {
+      // setTimeout(() => {
         this.channel
           .push('update', { change: change.ops, version })
           .receive('ok', (resp) => {
@@ -68,7 +68,7 @@ export default class Document {
               this.queued = null;
             }
           });
-      }, 2000);
+      // }, 2000);
     }
   }
 
@@ -87,25 +87,19 @@ export default class Document {
       }
     }
 
-    const newPosition = remoteDelta.transformPosition(this.editor.selectionStart);
     this.contents = this.contents.compose(remoteDelta);
     this.version += 1;
-    this.updateEditor(newPosition);
+    this.updateEditor();
   }
 
 
 
   // Flatten delta to plain text and display value in editor
-  updateEditor(position) {
+  updateEditor() {
     this.editor.value =
       this.contents.reduce((text, op) => {
         const val = (typeof op.insert === 'string') ? op.insert : '';
         return text + val;
       }, '');
-
-    if (position) {
-      this.editor.selectionStart = position;
-      this.editor.selectionEnd = position;
-    }
   }
 };
